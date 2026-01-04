@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Matrix Challenge 🧠</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="threejs-bg"></div>
+    <div class="app-container">
+        <header class="header">
+            <h1>Memory Matrix Challenge 🧠</h1>
+            <p class="subtitle">Test your pattern recognition and memory skills</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Menu Screen -->
+            <div class="screen" id="menuScreen">
+                <div class="menu-container">
+                    <h2>Choose Your Challenge</h2>
+                    <div class="difficulty-buttons">
+                        <button class="btn btn-easy" onclick="startGame('easy')">
+                            <span class="difficulty-icon">🌱</span>
+                            <span class="difficulty-name">Easy</span>
+                            <span class="difficulty-desc">3x3 Grid • Simple Patterns</span>
+                        </button>
+                        <button class="btn btn-medium" onclick="startGame('medium')">
+                            <span class="difficulty-icon">🔥</span>
+                            <span class="difficulty-name">Medium</span>
+                            <span class="difficulty-desc">4x4 Grid • Complex Patterns</span>
+                        </button>
+                        <button class="btn btn-hard" onclick="startGame('hard')">
+                            <span class="difficulty-icon">⚡</span>
+                            <span class="difficulty-name">Hard</span>
+                            <span class="difficulty-desc">5x5 Grid • Expert Patterns</span>
+                        </button>
+                        <button class="btn btn-extreme" onclick="startGame('extreme')">
+                            <span class="difficulty-icon">🏆</span>
+                            <span class="difficulty-name">Extreme</span>
+                            <span class="difficulty-desc">6x6 Grid • Master Challenge</span>
+                        </button>
+                    </div>
+                    
+                    <div class="stats-summary">
+                        <div class="stat-item">
+                            <span class="stat-label">High Score</span>
+                            <span class="stat-value" id="menuHighScore">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Games Played</span>
+                            <span class="stat-value" id="menuGamesPlayed">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Accuracy</span>
+                            <span class="stat-value" id="menuAccuracy">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Screen -->
+            <div class="screen" id="gameScreen" style="display: none;">
+                <div class="game-header">
+                    <div class="game-info">
+                        <div class="info-item">
+                            <span class="info-label">Level</span>
+                            <span class="info-value" id="currentLevel">1</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Score</span>
+                            <span class="info-value" id="currentScore">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Lives</span>
+                            <div class="lives-container" id="livesContainer">
+                                <span class="life">❤️</span>
+                                <span class="life">❤️</span>
+                                <span class="life">❤️</span>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Time</span>
+                            <span class="info-value" id="timer">0:00</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary btn-small" onclick="pauseGame()">Pause</button>
+                </div>
+
+                <div class="game-area">
+                    <div class="phase-indicator" id="phaseIndicator">
+                        <span class="phase-text">Watch the pattern carefully...</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+                    <div class="matrix-container" id="matrixContainer">
+                        <!-- Matrix grid will be generated here -->
+                    </div>
+
+                    <div class="game-controls">
+                        <button class="btn btn-secondary" onclick="backToMenu()">Back to Menu</button>
+                        <button class="btn" id="startPatternBtn" onclick="startPattern()" style="display: none;">Show Pattern</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pause Screen -->
+            <div class="screen overlay" id="pauseScreen" style="display: none;">
+                <div class="pause-container">
+                    <h2>Game Paused</h2>
+                    <div class="pause-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Current Score</span>
+                            <span class="stat-value" id="pauseScore">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Level</span>
+                            <span class="stat-value" id="pauseLevel">1</span>
+                        </div>
+                    </div>
+                    <div class="pause-buttons">
+                        <button class="btn" onclick="resumeGame()">Resume</button>
+                        <button class="btn btn-secondary" onclick="restartGame()">Restart</button>
+                        <button class="btn btn-secondary" onclick="backToMenu()">Quit to Menu</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Over Screen -->
+            <div class="screen overlay" id="gameOverScreen" style="display: none;">
+                <div class="game-over-container">
+                    <h2 id="gameOverTitle">Game Complete!</h2>
+                    <div class="final-stats">
+                        <div class="stat-row">
+                            <span class="stat-label">Final Score</span>
+                            <span class="stat-value highlight" id="finalScore">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Level Reached</span>
+                            <span class="stat-value" id="finalLevel">1</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Accuracy</span>
+                            <span class="stat-value" id="finalAccuracy">0%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Time Played</span>
+                            <span class="stat-value" id="finalTime">0:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="achievement-badges" id="achievementBadges">
+                        <!-- Achievements will be displayed here -->
+                    </div>
+
+                    <div class="game-over-buttons">
+                        <button class="btn" onclick="restartGame()">Play Again</button>
+                        <button class="btn btn-secondary" onclick="backToMenu()">Back to Menu</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Sound Toggle -->
+        <button class="sound-toggle" id="soundToggle" onclick="toggleSound()">
+            <span id="soundIcon">🔊</span>
+        </button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
