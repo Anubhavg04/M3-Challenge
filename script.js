@@ -24,7 +24,15 @@ let gameState = {
     correctPatterns: 0,
     totalPatterns: 0,
     startTime: null,
-    timerInterval: null
+    timerInterval: null,
+    failures: 0,
+    currentGameFailures: 0,
+    bestTime: Infinity,
+    gameHistory: [],
+    currentPatternStartTime: null,
+    currentPatternBestTime: null,
+    completedGames: 0,
+    failedGames: 0
 };
 
 // Difficulty Settings
@@ -123,6 +131,9 @@ function showScreen(screenId) {
 
 // Menu Functions
 function startGame(difficulty) {
+    // Save stats before starting new game to ensure persistence
+    saveStats();
+    
     gameState.difficulty = difficulty;
     const settings = difficultySettings[difficulty];
     
@@ -137,6 +148,10 @@ function startGame(difficulty) {
     gameState.symbolCell = undefined;
     gameState.isPaused = false;
     gameState.startTime = Date.now();
+    gameState.timeElapsed = 0;
+    gameState.currentGameFailures = 0;
+    gameState.currentPatternStartTime = Date.now();
+    gameState.currentPatternBestTime = null;
     
     showScreen('gameScreen');
     initializeGame();
@@ -179,6 +194,7 @@ function startPattern() {
     gameState.userPattern = [];
     gameState.isShowingPattern = true;
     gameState.canClick = false;
+    gameState.currentPatternStartTime = Date.now();
     
     document.getElementById('startPatternBtn').style.display = 'none';
     updatePhaseIndicator('Watch the pattern carefully...');
@@ -266,6 +282,7 @@ function handleCellClick(index) {
         
         playErrorSound();
         gameState.lives--;
+        gameState.currentGameFailures++;
         updateDisplay();
         
         updatePhaseIndicator('Oops! That was a distractor symbol! ⚠️');
@@ -303,6 +320,7 @@ function handleCellClick(index) {
         
         playErrorSound();
         gameState.lives--;
+        gameState.currentGameFailures++;
         updateDisplay();
         
         if (gameState.lives <= 0) {
@@ -325,9 +343,25 @@ function levelComplete() {
     const timeBonus = Math.max(0, 50 - Math.floor((Date.now() - gameState.startTime) / 1000));
     const levelScore = (baseScore + timeBonus) * settings.scoreMultiplier;
     
+    // Track pattern completion time
+    const patternTime = (Date.now() - gameState.currentPatternStartTime) / 1000; // in seconds
+    if (!gameState.currentPatternBestTime || patternTime < gameState.currentPatternBestTime) {
+        gameState.currentPatternBestTime = patternTime;
+    }
+    if (patternTime < (gameState.bestTime || Infinity)) {
+        gameState.bestTime = patternTime;
+    }
+    
     gameState.score += levelScore;
     gameState.correctPatterns++;
     gameState.totalPatterns++;
+    
+    // Update high score in real-time
+    if (gameState.score > (gameState.highScore || 0)) {
+        gameState.highScore = gameState.score;
+        // Save immediately when high score is updated
+        saveStats();
+    }
     
     playSuccessSound();
     updatePhaseIndicator('Excellent! Level Complete!');
@@ -340,10 +374,17 @@ function levelComplete() {
     
     updateDisplay();
     
+    // Save stats periodically during gameplay (every 3 levels)
+    if (gameState.level % 3 === 0) {
+        saveStats();
+    }
+    
     setTimeout(() => {
         if (gameState.level % 5 === 0) {
             playLevelUpSound();
             updatePhaseIndicator(`Level ${gameState.level - 1} Complete! 🎉`);
+            // Save stats at milestone levels
+            saveStats();
         }
         
         document.getElementById('startPatternBtn').style.display = 'inline-block';
@@ -352,19 +393,51 @@ function levelComplete() {
 }
 
 function gameOver() {
-    gameState.totalPatterns++;
-    gameState.gamesPlayed++;
-    gameState.totalScore += gameState.score;
+    // Count this game (win or lose, it's still a game played)
+    gameState.gamesPlayed = (gameState.gamesPlayed || 0) + 1;
+    gameState.totalPatterns = (gameState.totalPatterns || 0) + 1;
+    gameState.totalScore = (gameState.totalScore || 0) + gameState.score;
     
-    if (gameState.score > gameState.highScore) {
+    // Update high score if this is better
+    if (gameState.score > (gameState.highScore || 0)) {
         gameState.highScore = gameState.score;
+    }
+    
+    // Add current game failures to total
+    gameState.failures = (gameState.failures || 0) + gameState.currentGameFailures;
+    
+    // Determine if game was completed (reached level 3 or higher)
+    const wasCompleted = gameState.level >= 3;
+    if (wasCompleted) {
+        gameState.completedGames = (gameState.completedGames || 0) + 1;
+    } else {
+        gameState.failedGames = (gameState.failedGames || 0) + 1;
+    }
+    
+    // Save game history
+    if (!gameState.gameHistory) {
+        gameState.gameHistory = [];
+    }
+    gameState.gameHistory.push({
+        score: gameState.score,
+        level: gameState.level,
+        time: gameState.timeElapsed,
+        failures: gameState.currentGameFailures,
+        completed: wasCompleted,
+        date: new Date().toISOString()
+    });
+    
+    // Keep only last 10 games for history
+    if (gameState.gameHistory.length > 10) {
+        gameState.gameHistory = gameState.gameHistory.slice(-10);
     }
     
     playGameOverSound();
     stopTimer();
     
-    const accuracy = gameState.totalPatterns > 0 ? 
-        Math.round((gameState.correctPatterns / gameState.totalPatterns) * 100) : 0;
+    // Calculate accuracy based on completed games vs total games
+    const accuracy = gameState.gamesPlayed > 0 ? 
+        Math.round((gameState.completedGames / gameState.gamesPlayed) * 100) : 0;
     
     document.getElementById('finalScore').textContent = gameState.score;
     document.getElementById('finalLevel').textContent = gameState.level;
@@ -386,7 +459,19 @@ function gameOver() {
     // Show achievements
     showAchievements();
     
+    // CRITICAL: Save stats immediately after game ends
     saveStats();
+    
+    // Log for debugging
+    console.log('Game Over - Stats saved:', {
+        gamesPlayed: gameState.gamesPlayed,
+        score: gameState.score,
+        level: gameState.level,
+        failures: gameState.failures,
+        correctPatterns: gameState.correctPatterns,
+        totalPatterns: gameState.totalPatterns
+    });
+    
     showScreen('gameOverScreen');
 }
 
@@ -430,19 +515,68 @@ function resumeGame() {
 }
 
 function restartGame() {
-    if (gameState.currentScreen === 'gameOverScreen') {
-        gameState.gamesPlayed--;
-        gameState.totalPatterns -= gameState.correctPatterns;
-        gameState.totalScore -= gameState.score;
-    }
-    
+    // Don't double count - stats are already saved in gameOver()
+    // Just start a new game
     startGame(gameState.difficulty);
 }
 
 function backToMenu() {
     stopTimer();
     gameState.isPaused = false;
+    
+    // If user is leaving an active game, save it as a completed game
+    if (gameState.currentScreen === 'gameScreen' && gameState.score > 0) {
+        // This is a game in progress, save it as completed
+        gameState.gamesPlayed = (gameState.gamesPlayed || 0) + 1;
+        gameState.totalScore = (gameState.totalScore || 0) + gameState.score;
+        
+        // Update high score
+        if (gameState.score > (gameState.highScore || 0)) {
+            gameState.highScore = gameState.score;
+        }
+        
+        // Mark as completed if reached level 3+
+        const wasCompleted = gameState.level >= 3;
+        if (wasCompleted) {
+            gameState.completedGames = (gameState.completedGames || 0) + 1;
+        } else {
+            gameState.failedGames = (gameState.failedGames || 0) + 1;
+        }
+        
+        // Save game history
+        if (!gameState.gameHistory) {
+            gameState.gameHistory = [];
+        }
+        gameState.gameHistory.push({
+            score: gameState.score,
+            level: gameState.level,
+            time: gameState.timeElapsed,
+            failures: gameState.currentGameFailures,
+            completed: wasCompleted,
+            date: new Date().toISOString()
+        });
+        
+        // Keep only last 10 games
+        if (gameState.gameHistory.length > 10) {
+            gameState.gameHistory = gameState.gameHistory.slice(-10);
+        }
+        
+        // Add failures to total
+        gameState.failures = (gameState.failures || 0) + gameState.currentGameFailures;
+        
+        console.log('Saving game progress on menu exit:', {
+            gamesPlayed: gameState.gamesPlayed,
+            score: gameState.score,
+            level: gameState.level,
+            highScore: gameState.highScore
+        });
+    }
+    
+    // Save stats before going to menu
+    saveStats();
     showScreen('menuScreen');
+    // Reload stats to ensure we have latest data
+    loadStats();
     updateMenuStats();
 }
 
@@ -517,33 +651,117 @@ function formatTime(seconds) {
 
 // Stats Management
 function updateMenuStats() {
-    document.getElementById('menuHighScore').textContent = gameState.highScore;
-    document.getElementById('menuGamesPlayed').textContent = gameState.gamesPlayed;
+    // First reload stats to ensure we have latest data
+    loadStats();
     
-    const accuracy = gameState.totalPatterns > 0 ? 
-        Math.round((gameState.correctPatterns / gameState.totalPatterns) * 100) : 0;
-    document.getElementById('menuAccuracy').textContent = accuracy + '%';
+    // Ensure values are numbers, not undefined
+    const highScore = Number(gameState.highScore) || 0;
+    const gamesPlayed = Number(gameState.gamesPlayed) || 0;
+    const totalFailures = Number(gameState.failures) || 0;
+    const completedGames = Number(gameState.completedGames) || 0;
+    const failedGames = Number(gameState.failedGames) || 0;
+    
+    // Update menu stats
+    const menuHighScoreEl = document.getElementById('menuHighScore');
+    const menuGamesPlayedEl = document.getElementById('menuGamesPlayed');
+    const menuAccuracyEl = document.getElementById('menuAccuracy');
+    
+    if (menuHighScoreEl) menuHighScoreEl.textContent = highScore;
+    if (menuGamesPlayedEl) menuGamesPlayedEl.textContent = gamesPlayed;
+    
+    // Calculate accuracy based on completed games vs total attempts
+    let accuracy = 0;
+    if (gamesPlayed > 0) {
+        // Use completedGames directly or calculate from history
+        const actualCompleted = completedGames > 0 ? completedGames : 
+            (gameState.gameHistory ? gameState.gameHistory.filter(g => (g.level >= 3 || g.completed === true)).length : 0);
+        accuracy = Math.round((actualCompleted / gamesPlayed) * 100);
+    }
+    if (menuAccuracyEl) menuAccuracyEl.textContent = accuracy + '%';
+    
+    // Update detailed stats
+    const bestTime = (gameState.bestTime === Infinity || gameState.bestTime === null || isNaN(gameState.bestTime)) ? null : Number(gameState.bestTime);
+    const bestTimeEl = document.getElementById('bestTimeDisplay');
+    if (bestTimeEl) {
+        bestTimeEl.textContent = bestTime ? bestTime.toFixed(2) + 's' : '--';
+    }
+    
+    const totalFailuresEl = document.getElementById('totalFailuresDisplay');
+    if (totalFailuresEl) {
+        totalFailuresEl.textContent = totalFailures;
+    }
+    
+    // Success rate based on pattern accuracy
+    const totalPatterns = Number(gameState.totalPatterns) || 0;
+    const correctPatterns = Number(gameState.correctPatterns) || 0;
+    const successRate = totalPatterns > 0 ? 
+        Math.round((correctPatterns / totalPatterns) * 100) : 0;
+    const successRateEl = document.getElementById('successRateDisplay');
+    if (successRateEl) {
+        successRateEl.textContent = successRate + '%';
+    }
+    
+    // Average score
+    const totalScore = Number(gameState.totalScore) || 0;
+    const avgScore = gamesPlayed > 0 ? 
+        Math.round(totalScore / gamesPlayed) : 0;
+    const avgScoreEl = document.getElementById('avgScoreDisplay');
+    if (avgScoreEl) {
+        avgScoreEl.textContent = avgScore;
+    }
+    
+    // Update charts
+    updateCharts();
+    
+    // Update insights (real-time)
+    updateInsights();
 }
 
 function saveStats() {
-    localStorage.setItem('memoryMatrixStats', JSON.stringify({
-        highScore: gameState.highScore,
-        gamesPlayed: gameState.gamesPlayed,
-        totalScore: gameState.totalScore,
-        correctPatterns: gameState.correctPatterns,
-        totalPatterns: gameState.totalPatterns
-    }));
+    try {
+        const statsToSave = {
+            highScore: Number(gameState.highScore) || 0,
+            gamesPlayed: Number(gameState.gamesPlayed) || 0,
+            totalScore: Number(gameState.totalScore) || 0,
+            correctPatterns: Number(gameState.correctPatterns) || 0,
+            totalPatterns: Number(gameState.totalPatterns) || 0,
+            failures: Number(gameState.failures) || 0,
+            bestTime: gameState.bestTime === Infinity || gameState.bestTime === null ? null : Number(gameState.bestTime),
+            gameHistory: gameState.gameHistory || [],
+            completedGames: Number(gameState.completedGames) || 0,
+            failedGames: Number(gameState.failedGames) || 0
+        };
+        localStorage.setItem('memoryMatrixStats', JSON.stringify(statsToSave));
+        console.log('Stats saved:', statsToSave);
+    } catch (e) {
+        console.error('Error saving stats:', e);
+    }
 }
 
 function loadStats() {
     const saved = localStorage.getItem('memoryMatrixStats');
     if (saved) {
-        const stats = JSON.parse(saved);
-        gameState.highScore = stats.highScore || 0;
-        gameState.gamesPlayed = stats.gamesPlayed || 0;
-        gameState.totalScore = stats.totalScore || 0;
-        gameState.correctPatterns = stats.correctPatterns || 0;
-        gameState.totalPatterns = stats.totalPatterns || 0;
+        try {
+            const stats = JSON.parse(saved);
+            gameState.highScore = Number(stats.highScore) || 0;
+            gameState.gamesPlayed = Number(stats.gamesPlayed) || 0;
+            gameState.totalScore = Number(stats.totalScore) || 0;
+            gameState.correctPatterns = Number(stats.correctPatterns) || 0;
+            gameState.totalPatterns = Number(stats.totalPatterns) || 0;
+            gameState.failures = Number(stats.failures) || 0;
+            gameState.bestTime = stats.bestTime !== null && stats.bestTime !== undefined ? Number(stats.bestTime) : Infinity;
+            gameState.gameHistory = stats.gameHistory || [];
+            gameState.completedGames = Number(stats.completedGames) || 0;
+            gameState.failedGames = Number(stats.failedGames) || 0;
+            
+            // Recalculate completed/failed games from history if needed
+            if (gameState.gameHistory.length > 0) {
+                gameState.completedGames = gameState.gameHistory.filter(g => g.level >= 3 || g.completed === true).length;
+                gameState.failedGames = gameState.gameHistory.filter(g => g.level < 3 && g.completed !== true).length;
+            }
+        } catch (e) {
+            console.error('Error loading stats:', e);
+        }
     }
 }
 
@@ -795,10 +1013,246 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+// Chart Management
+let gameStatsChart = null;
+
+function updateCharts() {
+    // Destroy existing chart if it exists
+    if (gameStatsChart) {
+        gameStatsChart.destroy();
+        gameStatsChart = null;
+    }
+    
+    // Create Game Statistics Bar Chart with REAL data
+    const statsCtx = document.getElementById('gameStatsChart');
+    if (statsCtx) {
+        const gamesPlayed = Number(gameState.gamesPlayed) || 0;
+        const correctPatterns = Number(gameState.correctPatterns) || 0;
+        const failures = Number(gameState.failures) || 0;
+        const highScore = Number(gameState.highScore) || 0;
+        
+        // Use REAL values - normalize high score for better visualization
+        const maxValue = Math.max(gamesPlayed, correctPatterns, failures, highScore > 0 ? highScore / 100 : 0, 1);
+        
+        gameStatsChart = new Chart(statsCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Games Played', 'Patterns Completed', 'Total Failures', 'High Score (÷100)'],
+                datasets: [{
+                    label: 'Your Statistics',
+                    data: [
+                        gamesPlayed,
+                        correctPatterns,
+                        failures,
+                        highScore > 0 ? Math.round(highScore / 100) : 0
+                    ],
+                    backgroundColor: [
+                        'rgba(102, 126, 234, 0.8)',    // Blue for games
+                        'rgba(39, 174, 96, 0.8)',      // Green for patterns
+                        'rgba(231, 76, 60, 0.8)',      // Red for failures
+                        'rgba(255, 193, 7, 0.8)'       // Yellow for high score
+                    ],
+                    borderColor: [
+                        'rgba(102, 126, 234, 1)',
+                        'rgba(39, 174, 96, 1)',
+                        'rgba(231, 76, 60, 1)',
+                        'rgba(255, 193, 7, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const labels = ['Games Played', 'Patterns Completed', 'Total Failures', 'High Score'];
+                                const values = [
+                                    gamesPlayed,
+                                    correctPatterns,
+                                    failures,
+                                    highScore
+                                ];
+                                const displayValues = [
+                                    gamesPlayed,
+                                    correctPatterns,
+                                    failures,
+                                    highScore > 0 ? highScore + ' pts' : '0 pts'
+                                ];
+                                return labels[context.dataIndex] + ': ' + displayValues[context.dataIndex];
+                            }
+                        },
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: 'rgba(255, 0, 110, 1)',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            stepSize: 1
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.8)'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function updateInsights() {
+    const insightCard = document.getElementById('insightCard');
+    if (!insightCard) {
+        return;
+    }
+    
+    // Reload stats to get latest data
+    loadStats();
+    
+    const gamesPlayed = Number(gameState.gamesPlayed) || 0;
+    const totalPatterns = Number(gameState.totalPatterns) || 0;
+    const correctPatterns = Number(gameState.correctPatterns) || 0;
+    const totalFailures = Number(gameState.failures) || 0;
+    const completedGames = Number(gameState.completedGames) || 0;
+    const failedGames = Number(gameState.failedGames) || 0;
+    const highScore = Number(gameState.highScore) || 0;
+    const avgScore = gamesPlayed > 0 ? Math.round((Number(gameState.totalScore) || 0) / gamesPlayed) : 0;
+    const totalGames = gamesPlayed;
+    const bestTime = (gameState.bestTime === Infinity || gameState.bestTime === null || isNaN(gameState.bestTime)) ? null : Number(gameState.bestTime);
+    
+    // Get last game details
+    const lastGame = gameState.gameHistory && gameState.gameHistory.length > 0 ? 
+        gameState.gameHistory[gameState.gameHistory.length - 1] : null;
+    
+    if (gamesPlayed === 0) {
+        insightCard.innerHTML = '<p class="insight-text">🎮 Play your first game to see your performance insights!</p>';
+        return;
+    }
+    
+    // Calculate metrics
+    const accuracy = totalPatterns > 0 ? 
+        Math.round((correctPatterns / totalPatterns) * 100) : 0;
+    const completionRate = totalGames > 0 ? Math.round((completedGames / totalGames) * 100) : 0;
+    
+    // Build insights based on ACTUAL performance data
+    let html = '';
+    
+    // Main performance assessment based on HIGH SCORE
+    if (highScore >= 1000) {
+        html += '<h5 class="insight-main">🏆 Exceptional Performer!</h5>';
+        html += '<div class="insight-list">';
+        html += `<p class="insight-text"><strong>High Score:</strong> ${highScore} points - Outstanding achievement! Your memory skills are exceptional.</p>`;
+    } else if (highScore >= 500) {
+        html += '<h5 class="insight-main">⭐ Great Performance!</h5>';
+        html += '<div class="insight-list">';
+        html += `<p class="insight-text"><strong>High Score:</strong> ${highScore} points - Excellent memory and pattern recognition skills!</p>`;
+    } else if (highScore >= 200) {
+        html += '<h5 class="insight-main">👍 Good Progress!</h5>';
+        html += '<div class="insight-list">';
+        html += `<p class="insight-text"><strong>High Score:</strong> ${highScore} points - You're building strong memory skills!</p>`;
+    } else if (highScore > 0) {
+        html += '<h5 class="insight-main">🌱 Getting Started!</h5>';
+        html += '<div class="insight-list">';
+        html += `<p class="insight-text"><strong>High Score:</strong> ${highScore} points - Keep practicing to improve your memory!</p>`;
+    } else {
+        html += '<h5 class="insight-main">🎮 Start Your Journey!</h5>';
+        html += '<div class="insight-list">';
+        html += '<p class="insight-text">Complete a game to see your performance insights!</p>';
+    }
+    
+    // Add detailed stats
+    if (gamesPlayed > 0) {
+        html += `<p class="insight-text"><strong>📊 Games Played:</strong> ${gamesPlayed} ${gamesPlayed === 1 ? 'game' : 'games'}</p>`;
+        
+        if (completedGames > 0 || failedGames > 0) {
+            html += `<p class="insight-text"><strong>✅ Completed:</strong> ${completedGames} game(s) | <strong>⚠️ Failed:</strong> ${failedGames} game(s)</p>`;
+        }
+        
+        if (avgScore > 0) {
+            html += `<p class="insight-text"><strong>📈 Average Score:</strong> ${avgScore} points per game</p>`;
+        }
+        
+        if (correctPatterns > 0) {
+            html += `<p class="insight-text"><strong>🧩 Patterns Completed:</strong> ${correctPatterns} successful pattern(s)</p>`;
+        }
+        
+        if (totalFailures > 0) {
+            html += `<p class="insight-text"><strong>❌ Total Failures:</strong> ${totalFailures} - Each mistake is a learning opportunity!</p>`;
+        }
+        
+        if (accuracy > 0) {
+            html += `<p class="insight-text"><strong>🎯 Pattern Accuracy:</strong> ${accuracy}% - ${accuracy >= 70 ? 'Excellent!' : accuracy >= 50 ? 'Good!' : 'Keep practicing!'}</p>`;
+        }
+        
+        if (completionRate > 0) {
+            html += `<p class="insight-text"><strong>🏁 Completion Rate:</strong> ${completionRate}% - ${completionRate >= 70 ? 'Outstanding consistency!' : completionRate >= 50 ? 'Good progress!' : 'Room for improvement!'}</p>`;
+        }
+        
+        if (bestTime && bestTime > 0) {
+            html += `<p class="insight-text"><strong>⚡ Best Time:</strong> ${bestTime.toFixed(2)}s - ${bestTime < 5 ? 'Lightning fast!' : bestTime < 10 ? 'Very quick!' : 'Good speed!'}</p>`;
+        }
+        
+        // Last game details
+        if (lastGame) {
+            html += `<p class="insight-text"><strong>🎮 Last Game:</strong> Reached Level ${lastGame.level}, Score: ${lastGame.score} points`;
+            if (lastGame.completed) {
+                html += ' ✅ Completed!';
+            }
+            html += '</p>';
+        }
+    }
+    
+    html += '</div>';
+    
+    // Personalized tip based on ACTUAL performance
+    let recommendation = '';
+    if (gamesPlayed === 1) {
+        recommendation = '💡 Tip: Play more games to build consistent performance. Practice makes perfect!';
+    } else if (highScore < 200) {
+        recommendation = '💡 Tip: Focus on accuracy and reaching higher levels to improve your high score!';
+    } else if (completionRate < 50) {
+        recommendation = '💡 Tip: Try to complete more games (reach level 3+) to improve your completion rate!';
+    } else if (accuracy < 70) {
+        recommendation = '💡 Tip: Take your time observing patterns carefully to improve accuracy!';
+    } else {
+        recommendation = '💡 Tip: Excellent performance! Try harder difficulty levels for a greater challenge!';
+    }
+    
+    html += `<p class="insight-recommendation">${recommendation}</p>`;
+    
+    insightCard.innerHTML = html;
+}
+
 // Initialize on load
 window.onload = function() {
     initThreeJS();
+    // Load stats first
     loadStats();
+    // Then update menu to show stats
     updateMenuStats();
     showScreen('menuScreen');
+    
+    // Save stats periodically as backup
+    setInterval(() => {
+        saveStats();
+    }, 30000); // Save every 30 seconds
 };

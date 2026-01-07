@@ -265,6 +265,150 @@ body {
     color: #667eea;
 }
 
+/* Statistics & Analytics Section */
+.stats-analytics-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+    text-align: center;
+    font-size: 1.8em;
+    margin-bottom: 30px;
+    background: linear-gradient(135deg, #ff006e, #8338ec);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.charts-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+.chart-wrapper {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.chart-title {
+    text-align: center;
+    font-size: 1.2em;
+    margin-bottom: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+}
+
+.chart-wrapper canvas {
+    max-height: 300px;
+}
+
+/* Insights Section */
+.insights-section {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+.insights-title {
+    text-align: center;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #06ffa5, #3a86ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.insight-card {
+    background: rgba(102, 126, 234, 0.15);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 15px;
+    padding: 25px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+}
+
+.insight-main {
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    color: #fff;
+    text-align: center;
+    font-weight: bold;
+}
+
+.insight-list {
+    margin-bottom: 15px;
+}
+
+.insight-text {
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.8;
+    margin-bottom: 12px;
+    font-size: 1em;
+}
+
+.insight-recommendation {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255, 193, 7, 0.15);
+    border-left: 4px solid #ffc107;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 600;
+    font-size: 1.05em;
+}
+
+/* Detailed Stats */
+.detailed-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-stat-item {
+    text-align: center;
+    padding: 20px;
+    background: rgba(131, 56, 236, 0.1);
+    border-radius: 12px;
+    border: 1px solid rgba(131, 56, 236, 0.3);
+    transition: all 0.3s ease;
+}
+
+.detail-stat-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(131, 56, 236, 0.3);
+    border-color: rgba(131, 56, 236, 0.6);
+}
+
+.detail-label {
+    display: block;
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+}
+
+.detail-value {
+    display: block;
+    font-size: 1.8em;
+    font-weight: bold;
+    background: linear-gradient(135deg, #8338ec, #3a86ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
 /* Game Screen */
 .game-header {
     background: rgba(0, 0, 0, 0.6);
@@ -697,6 +841,14 @@ body {
     .game-over-buttons {
         flex-direction: column;
     }
+    
+    .charts-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .detailed-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 480px) {
@@ -741,6 +893,18 @@ body {
     .difficulty-buttons .btn {
         min-height: 100px;
         padding: 15px;
+    }
+    
+    .detailed-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-wrapper {
+        padding: 15px;
+    }
+    
+    .insight-card {
+        padding: 20px;
     }
 }
 

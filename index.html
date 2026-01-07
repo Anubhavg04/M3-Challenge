@@ -6,6 +6,7 @@
     <title>Memory Matrix Challenge 🧠</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div id="threejs-bg"></div>
@@ -55,6 +56,44 @@
                         <div class="stat-item">
                             <span class="stat-label">Accuracy</span>
                             <span class="stat-value" id="menuAccuracy">0%</span>
+                        </div>
+                    </div>
+
+                    <!-- Statistics & Analytics Section -->
+                    <div class="stats-analytics-section" id="statsAnalyticsSection">
+                        <h3 class="section-title">📊 Your Performance Analytics</h3>
+                        
+                        <div class="charts-container">
+                            <div class="chart-wrapper">
+                                <h4 class="chart-title">Game Statistics</h4>
+                                <canvas id="gameStatsChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="insights-section" id="insightsSection">
+                            <h4 class="insights-title">🧠 Cognitive Insights</h4>
+                            <div class="insight-card" id="insightCard">
+                                <p class="insight-text">Play a game to see your cognitive insights!</p>
+                            </div>
+                        </div>
+
+                        <div class="detailed-stats">
+                            <div class="detail-stat-item">
+                                <span class="detail-label">Best Time</span>
+                                <span class="detail-value" id="bestTimeDisplay">--</span>
+                            </div>
+                            <div class="detail-stat-item">
+                                <span class="detail-label">Total Failures</span>
+                                <span class="detail-value" id="totalFailuresDisplay">0</span>
+                            </div>
+                            <div class="detail-stat-item">
+                                <span class="detail-label">Success Rate</span>
+                                <span class="detail-value" id="successRateDisplay">0%</span>
+                            </div>
+                            <div class="detail-stat-item">
+                                <span class="detail-label">Avg Score</span>
+                                <span class="detail-value" id="avgScoreDisplay">0</span>
+                            </div>
                         </div>
                     </div>
                 </div>
